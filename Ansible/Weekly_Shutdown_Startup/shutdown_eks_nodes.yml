@@ -1,0 +1,24 @@
+---
+- name: Shutdown EKS Worker Nodes
+  hosts: localhost
+  tasks:
+    - name: Fetch EKS worker nodes
+      command: >
+        aws ec2 describe-instances --filters "Name=tag:eks:nodegroup-name,Values={{ nodegroup_name }}"
+        --query "Reservations[*].Instances[*].InstanceId" --output text --region {{ region }}
+      register: worker_nodes
+
+    - name: Populate instance_ids
+      set_fact:
+        instance_ids: "{{ worker_nodes.stdout_lines }}"
+      when: worker_nodes.stdout_lines | length > 0
+
+    - name: Stop EKS worker nodes
+      command: >
+        aws ec2 stop-instances --instance-ids {{ instance_ids | join(' ') }} --region {{ region }}
+      when: instance_ids | length > 0
+
+    - name: Update ASG to 0 min, 0 max (shutdown)
+      command: >
+        aws autoscaling update-auto-scaling-group --auto-scaling-group-name {{ asg_name }}
+        --min-size 0 --max-size 0 --desired-capacity 0 --region {{ region }}
