@@ -1,0 +1,4 @@
+---
+nodegroup_name: your-nodegroup-name
+region: us-west-2
+asg_name: your-asg-name
