@@ -1,0 +1,23 @@
+---
+- name: Upload Node Group Details to Artifactory
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Include environment-specific variables
+      include_vars: "vars/{{ env_name }}.yml"
+
+    - name: Fetch Artifactory Credentials from Vault
+      hashivault_read:
+        secret: "secret/data/artifactory"
+        token: "{{ vault_token }}"
+      register: artifactory_creds
+
+    - name: Upload CSV to Artifactory
+      uri:
+        url: "https://artifactory.example.com/artifactory/path/to/{{ cluster_name }}_{{ env_name }}_nodegroup_details.zip"
+        method: PUT
+        user: "{{ artifactory_creds.data.data.username }}"
+        password: "{{ artifactory_creds.data.data.password }}"
+        body: "{{ lookup('file', '/tmp/{{ cluster_name }}_{{ env_name }}_nodegroup_details.zip') }}"
+        body_format: binary
