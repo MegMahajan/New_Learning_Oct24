@@ -1,4 +1,6 @@
+
 ---
-nodegroup_name: your-nodegroup-name
-region: us-west-2
-asg_name: your-asg-name
+vault_token: "your_vault_token"
+cluster_name: "your_cluster_name"
+region: "your_region"
+
