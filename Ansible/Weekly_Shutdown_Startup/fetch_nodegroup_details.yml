@@ -1,0 +1,44 @@
+---
+- name: Fetch EKS Node Groups and Their Details
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Include environment-specific variables
+      include_vars: "vars/{{ env_name }}.yml"
+
+    - name: Fetch Node Groups
+      command: >
+        aws eks list-nodegroups --cluster-name {{ cluster_name }} --region {{ region }}
+      register: nodegroups
+
+    - name: Set Node Groups as a fact
+      set_fact:
+        nodegroups_list: "{{ nodegroups.stdout | from_json | json_query('nodegroups') }}"
+
+    - name: Iterate through Node Groups and fetch details
+      command: >
+        aws eks describe-nodegroup --cluster-name {{ cluster_name }} --nodegroup-name {{ item }} --region {{ region }}
+      register: nodegroup_details
+      with_items: "{{ nodegroups_list }}"
+      loop_control:
+        loop_var: nodegroup
+
+    - name: Set Node Group Details as a fact
+      set_fact:
+        nodegroup_facts: "{{ nodegroup_facts | default({}) | combine({item.item: nodegroup_details.stdout | from_json}) }}"
+      with_items: "{{ nodegroup_details.results }}"
+
+    - name: Write Node Group Details to CSV
+      copy:
+        dest: /tmp/{{ cluster_name }}_{{ env_name }}_nodegroup_details.csv
+        content: |
+          NodeGroup, MinSize, MaxSize, DesiredCapacity
+          {% for nodegroup, details in nodegroup_facts.items() %}
+          {{ nodegroup }}, {{ details.nodegroup.scalingConfig.minSize }}, {{ details.nodegroup.scalingConfig.maxSize }}, {{ details.nodegroup.scalingConfig.desiredSize }}
+          {% endfor %}
+
+    - name: Zip the CSV file
+      archive:
+        path: /tmp/{{ cluster_name }}_{{ env_name }}_nodegroup_details.csv
+        dest: /tmp/{{ cluster_name }}_{{ env_name }}_nodegroup_details.zip
