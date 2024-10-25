@@ -1,0 +1,29 @@
+---
+- name: Shutdown EKS Worker Nodes
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Include environment-specific variables
+      include_vars: "vars/{{ env_name }}.yml"
+
+    - name: Fetch Node Groups
+      command: >
+        aws eks list-nodegroups --cluster-name {{ cluster_name }} --region {{ region }}
+      register: nodegroups
+
+    - name: Set Node Groups as a fact
+      set_fact:
+        nodegroups_list: "{{ nodegroups.stdout | from_json | json_query('nodegroups') }}"
+
+    - name: Iterate through Node Groups and update ASG
+      command: >
+        aws eks update-nodegroup-config --cluster-name {{ cluster_name }} --nodegroup-name {{ item }} --scaling-config minSize=0,maxSize=0,desiredSize=0 --region {{ region }}
+      with_items: "{{ nodegroups_list }}"
+      loop_control:
+        loop_var: nodegroup
+
+    - name: Drain EKS nodes
+      command: >
+        kubectl drain {{ item }} --ignore-daemonsets --delete-local-data
+      with_items: "{{ nodegroups_list }}"
